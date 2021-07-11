@@ -12,7 +12,7 @@ class Tag(BaseModel):
 # currently storing data in memory!!
 # this will result in data being lost whenever the service shuts down
 # change this to firestore asap
-tags = {}
+tags = {"foo": 3}
 
 @app.get("/", response_model = Dict[str, int])
 async def read_all():
