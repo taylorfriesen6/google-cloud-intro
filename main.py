@@ -8,9 +8,12 @@ from firebase_admin import credentials
 from firebase_admin import firestore
 
 import google.cloud.logging
-import logging
+
+from opencensus.ext.stackdriver import trace_exporter as stackdriver_exporter
+import opencensus.trace.tracer
 
 project_id = "tag-counter-319600"
+
 # Use the application default credentials
 cred = credentials.ApplicationDefault()
 firebase_admin.initialize_app(cred, {
@@ -18,39 +21,53 @@ firebase_admin.initialize_app(cred, {
 })
 db = firestore.client()
 
-app = FastAPI()
+metadata = [
+    {
+        "name": "increment count",
+        "description": "adds **value** to the current value stored for the tag **name**",
+    },
+    {
+        "name": "get tag stats",
+        "description": "returns the list of tags that have been passed in, and for each tag returns the sum of all the corresponding increment values"
+    },
+]
 
-client = google.cloud.logging.Client()
-client.get_default_handler()
-client.setup_logging()
+app = FastAPI(openapi_tags=metadata)
+
+
+exporter = stackdriver_exporter.StackdriverExporter(
+    project_id=project_id
+)
+tracer = opencensus.trace.tracer.Tracer(
+    # exporter=exporter,
+    sampler=opencensus.trace.tracer.samplers.AlwaysOnSampler()
+)
+
+
 
 class Tag(BaseModel):
-    name: Optional[str] = None
+    name: str = ""
     value: int = 0
 
-@app.get("/", response_model = Dict[str, int])
-async def read_all():
-    # The name of the log to write to
-    log_name = "my-log"
-    # Selects the log to write to
-    logger = client.logger(log_name)
-
-    # The data to log
-    text = "Hello, world! :)"
-
-    # Writes the log entry
-    logger.log_text(text)
-
+@app.get("/", response_model = Dict[str, int], tags=["get tag stats"])
+async def get_tag_stats():
     docs = db.collection(u'tags').stream()
     result = {}
     for doc in docs:
         result[doc.id] = doc.to_dict()[u'sum']
     return result
 
-@app.post("/")
-async def increment_tag(tag: Tag):
+@app.post("/", tags=["increment count"])
+async def increment_count(tag: Tag):
     name = tag.name
     value = tag.value
+    logger = google.cloud.logging.Client().logger("my-log")
+    log_data = {
+        "operation": "increment count",
+        "name": name,
+        "value": value
+    }
+    logger.log_struct(log_data, severity="INFO")
     doc_ref = db.collection(u'tags').document(name)
     doc = doc_ref.get()
     if doc.exists:
