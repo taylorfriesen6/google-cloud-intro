@@ -43,7 +43,7 @@ tracer = opencensus.trace.tracer.Tracer(
     sampler=opencensus.trace.tracer.samplers.AlwaysOnSampler()
 )
 
-
+logger = google.cloud.logging.Client().logger("my-log")
 
 class Tag(BaseModel):
     name: str = ""
@@ -61,7 +61,6 @@ async def get_tag_stats():
 async def increment_count(tag: Tag):
     name = tag.name
     value = tag.value
-    logger = google.cloud.logging.Client().logger("my-log")
     log_data = {
         "operation": "increment count",
         "name": name,
