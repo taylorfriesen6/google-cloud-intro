@@ -9,19 +9,9 @@ from firebase_admin import firestore
 
 import google.cloud.logging
 
-from opencensus.ext.stackdriver import trace_exporter as stackdriver_exporter
-import opencensus.trace.tracer
-
 project_id = "tag-counter-319600"
 
-# Use the application default credentials
-cred = credentials.ApplicationDefault()
-firebase_admin.initialize_app(cred, {
-  'projectId': project_id,
-})
-db = firestore.client()
-
-metadata = [
+app = FastAPI(openapi_tags=[
     {
         "name": "increment count",
         "description": "adds **value** to the current value stored for the tag **name**",
@@ -30,18 +20,13 @@ metadata = [
         "name": "get tag stats",
         "description": "returns the list of tags that have been passed in, and for each tag returns the sum of all the corresponding increment values"
     },
-]
+])
 
-app = FastAPI(openapi_tags=metadata)
-
-
-exporter = stackdriver_exporter.StackdriverExporter(
-    project_id=project_id
-)
-tracer = opencensus.trace.tracer.Tracer(
-    # exporter=exporter,
-    sampler=opencensus.trace.tracer.samplers.AlwaysOnSampler()
-)
+cred = credentials.ApplicationDefault()
+firebase_admin.initialize_app(cred, {
+  'projectId': project_id,
+})
+db = firestore.client()
 
 logger = google.cloud.logging.Client().logger("my-log")
 
